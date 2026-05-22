@@ -22,9 +22,9 @@ jobs:
           sudo ./compile.sh \
             BOARD=visionfive2 \
             BRANCH=vendor \
-            RELEASE=trixie \
+            RELEASE=noble \
             BUILD_MINIMAL=yes \
-            BUILD_DESKTOP=no \
+            BUILD_DESKTOP=xfce \
             KERNEL_CONFIGURE=no \
             COMPRESS_OUTPUTIMAGE=sha,img,xz
 
