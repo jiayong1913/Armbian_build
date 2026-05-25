@@ -22,7 +22,8 @@ jobs:
           sudo ./compile.sh \
             BOARD=visionfive2 \
             BRANCH=vendor \
-            RELEASE=noble \
+            RELEASE=trixie \
+            BUILD_MINIMAL=no \
             BUILD_DESKTOP=yes  \
             DESKTOP_APPGROUPS_SELECTED='browsers chat desktop_tools' \
             DESKTOP_ENVIRONMENT=xfce \
