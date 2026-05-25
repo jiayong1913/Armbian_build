@@ -26,7 +26,7 @@ jobs:
             BUILD_MINIMAL=yes \
             BUILD_DESKTOP=yes  \
             DESKTOP_APPGROUPS_SELECTED='browsers chat desktop_tools' \
-            DESKTOP_ENVIRONMENT=gnome \
+            DESKTOP_ENVIRONMENT=xfce \
             DESKTOP_ENVIRONMENT_CONFIG_NAME=config_base \
             KERNEL_CONFIGURE=no \
             COMPRESS_OUTPUTIMAGE=sha,img,xz
