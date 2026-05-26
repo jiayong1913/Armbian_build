@@ -111,9 +111,9 @@ jobs:
           sudo ./compile.sh \
             BOARD=visionfive2 \
             BRANCH=vendor \
-            RELEASE=noble \
+            RELEASE=trixie \
             BUILD_MINIMAL=yes \
-            BUILD_DESKTOP=xfce \
+            BUILD_DESKTOP=no \
             KERNEL_CONFIGURE=no \
             COMPRESS_OUTPUTIMAGE=sha,img,xz
 
