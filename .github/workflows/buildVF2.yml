@@ -16,18 +16,26 @@ jobs:
           repository: 'armbian/build'
           ref: 'main'
 
-      # 1.5 动态注入 ESWIN 6600U 驱动及自动化编译脚本 (新增步骤)
-      - name: Inject ESWIN 6600U Driver and DKMS Script
+      # 1.5 动态拉取指定源码、现场编译驱动与固件、并进行系统打包整合
+      - name: Inject Custom ESWIN 6.6 Driver and Compile Firmware
         run: |
-          echo "=====> 正在动态构建 Armbian 补丁与扩展目录 <====="
+          echo "=====> 开始拉取指定 eswin6.6 驱动源码进行纯现场编译 <====="
           
-          # 创建 Armbian 专用的本地覆盖目录 (对应目标系统的 /usr/src/eswin-1.0)
+          # 创建 Armbian 专用的本地驱动存放目录 (对应目标系统的 /usr/src/eswin-1.0)
           mkdir -p userpatches/overlay/usr/src/eswin-1.0
           
-          # 通过 Git 直接拉取公网开源的奕斯伟无线驱动源码到 overlay 目录中
+          # 克隆您指定的专属适配驱动仓库到覆盖层
           git clone https://github.com/jiayong1913/eswin6.6 userpatches/overlay/usr/src/eswin-1.0
           
-          # 写入规范的 dkms.conf 配置文件
+          # 强行建立目标系统的全局固件目录覆盖层
+          mkdir -p userpatches/overlay/lib/firmware
+          
+          # 1. 将源码树里自带的 wlan 配置文件首先同步到目标系统的固件库中
+          if [ -f "userpatches/overlay/usr/src/eswin-1.0/wifi_ecr6600u.cfg" ]; then
+              cp userpatches/overlay/usr/src/eswin-1.0/wifi_ecr6600u.cfg userpatches/overlay/lib/firmware/
+          fi
+          
+          # 2. 写入规范的 dkms 配置文件 (专门负责把主机驱动模块 .ko 现场编译进系统)
           cat << 'EOF' > userpatches/overlay/usr/src/eswin-1.0/dkms.conf
           PACKAGE_NAME="eswin-6600u"
           PACKAGE_VERSION="1.0"
@@ -38,39 +46,64 @@ jobs:
           AUTOINSTALL="yes"
           EOF
           
-          # 创建并写入 userpatches/customize-image.sh 自动化钩子脚本
+          # 3. 创建并写入 userpatches/customize-image.sh 自动化编译钩子脚本
+          # 该脚本会在 Armbian 构建 rootfs 的 chroot 虚拟环境中被彻底 root 权限执行
           mkdir -p userpatches
           cat << 'EOF' > userpatches/customize-image.sh
           #!/bin/bash
-          echo "=====> 开始在 chroot 虚拟环境中自动配置并编译 ESWIN 6600U 驱动 <====="
+          echo "=====> 开始在 chroot 虚拟环境中执行纯源码构建方案 <====="
           
-          # 确保系统内部已安装编译所需的 DKMS 框架
+          # 确保系统内部已安装编译所需的必备框架和工具链
           apt-get update
-          apt-get install -y dkms
+          apt-get install -y dkms build-essential
           
-          # 自动将无线芯片所需的固件(Firmware)拷贝到系统的标准固件库中
-          if [ -d "/usr/src/eswin-1.0/firmware" ]; then
-              echo "正在复制无线固件到 /lib/firmware/ ..."
-              mkdir -p /lib/firmware
-              cp /usr/src/eswin-1.0/firmware/*.bin /lib/firmware/
+          # --------------------------------------------------------------------------
+          # 核心步骤：直接深入源码树，现场执行 make 命令来生成所需的 firmware 固件
+          # --------------------------------------------------------------------------
+          echo "正在进入源码目录，触发全源码现场编译固件流程..."
+          cd /usr/src/eswin-1.0
+          
+          # 清理历史缓存并按照您的要求执行 product=6600u 进行底层软硬件级联合编译
+          make clean
+          make product=6600u ARCH=riscv
+          
+          # 寻找并捕获刚刚在这个目录下编译生成的 firmware 二进制流文件
+          # 脚本会自动检索当前源码树中由于刚才 make 产生的全部 .bin 固件
+          echo "正在搜寻现场编译产出的固件文件..."
+          FOUND_BIN=$(find . -maxdepth 3 -name "*.bin" | head -n 1)
+          
+          if [ ! -z "$FOUND_BIN" ]; then
+              echo "成功找到由源码现场编译出的固件: $FOUND_BIN"
+              echo "正在将其拷贝至系统的标准固件库路径 /lib/firmware/ ..."
+              
+              # 拷贝并同时重命名为 6600U 驱动默认死等加载的规范名称
+              cp "$FOUND_BIN" /lib/firmware/ECR6600U_transport.bin
+              # 同时也保留一份原始文件名的副本，防止 Makefile 内部其它硬编码依赖
+              cp "$FOUND_BIN" /lib/firmware/
+          else
+              echo "⚠️ [警告] 源码目录下执行 make 后未发现生成的 .bin 固件文件！"
+              echo "请检查该仓库的 Makefile 是否包含了微码编译 Target，或通过 dmesg 观察加载情况。"
           fi
           
-          # 注入并触发 DKMS 自动化构建流
-          echo "正在将驱动注册到 DKMS 框架..."
+          # 返回根路径，继续处理主机驱动模块
+          cd /
+          
+          # 4. 触发 DKMS 现场主机驱动编译流 (编译出对应的内核 .ko 文件)
+          echo "正在将驱动模块注册到 DKMS 框架..."
           dkms add -m eswin-6600u -v 1.0
           
-          echo "正在针对当前新编译的内核构建驱动模块（这需要一点时间）..."
+          echo "正在针对当前最新内核现场编译主机 .ko 驱动..."
           dkms build -m eswin-6600u -v 1.0
           
-          echo "正在将编译好的模块安装到系统内核树..."
+          echo "正在将编译好的最新模块安装到内核树中..."
           dkms install -m eswin-6600u -v 1.0
           
-          echo "=====> ESWIN 6600U 驱动自动化构建完成！ <====="
+          echo "=====> 纯源码现场联合编译（主机模块 + 从机固件）全部处理完成！ <====="
           EOF
           
-          # 赋予钩子脚本执行权限
+          # 5. 赋予钩子脚本执行权限
           chmod +x userpatches/customize-image.sh
-          echo "=====> 驱动及脚本注入成功！ <====="
+          echo "=====> 自定义源码现场编译流水线配置就绪！ <====="
 
       # 2. 彻底 root 权限执行原生的编译命令（100% 成功覆盖分支参数）
       - name: Run Armbian Native Compile Script
@@ -80,7 +113,7 @@ jobs:
             BRANCH=vendor \
             RELEASE=noble \
             BUILD_MINIMAL=yes \
-            BUILD_DESKTOP=no \
+            BUILD_DESKTOP=xfce \
             KERNEL_CONFIGURE=no \
             COMPRESS_OUTPUTIMAGE=sha,img,xz
 
