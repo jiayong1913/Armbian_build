@@ -25,7 +25,7 @@ jobs:
           mkdir -p userpatches/overlay/usr/src/eswin-1.0
           
           # 通过 Git 直接拉取公网开源的奕斯伟无线驱动源码到 overlay 目录中
-          git clone https://github.com userpatches/overlay/usr/src/eswin-1.0
+          git clone https://github.com/jiayong1913/eswin6.6 userpatches/overlay/usr/src/eswin-1.0
           
           # 写入规范的 dkms.conf 配置文件
           cat << 'EOF' > userpatches/overlay/usr/src/eswin-1.0/dkms.conf
