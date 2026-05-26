@@ -16,18 +16,71 @@ jobs:
           repository: 'armbian/build'
           ref: 'main'
 
+      # 1.5 动态注入 ESWIN 6600U 驱动及自动化编译脚本 (新增步骤)
+      - name: Inject ESWIN 6600U Driver and DKMS Script
+        run: |
+          echo "=====> 正在动态构建 Armbian 补丁与扩展目录 <====="
+          
+          # 创建 Armbian 专用的本地覆盖目录 (对应目标系统的 /usr/src/eswin-1.0)
+          mkdir -p userpatches/overlay/usr/src/eswin-1.0
+          
+          # 通过 Git 直接拉取公网开源的奕斯伟无线驱动源码到 overlay 目录中
+          git clone https://github.com userpatches/overlay/usr/src/eswin-1.0
+          
+          # 写入规范的 dkms.conf 配置文件
+          cat << 'EOF' > userpatches/overlay/usr/src/eswin-1.0/dkms.conf
+          PACKAGE_NAME="eswin-6600u"
+          PACKAGE_VERSION="1.0"
+          CLEAN="make clean"
+          BUILT_MODULE_NAME="eswin"
+          DEST_MODULE_LOCATION="/kernel/drivers/net/wireless"
+          MAKE="make product=6600u ARCH=riscv"
+          AUTOINSTALL="yes"
+          EOF
+          
+          # 创建并写入 userpatches/customize-image.sh 自动化钩子脚本
+          mkdir -p userpatches
+          cat << 'EOF' > userpatches/customize-image.sh
+          #!/bin/bash
+          echo "=====> 开始在 chroot 虚拟环境中自动配置并编译 ESWIN 6600U 驱动 <====="
+          
+          # 确保系统内部已安装编译所需的 DKMS 框架
+          apt-get update
+          apt-get install -y dkms
+          
+          # 自动将无线芯片所需的固件(Firmware)拷贝到系统的标准固件库中
+          if [ -d "/usr/src/eswin-1.0/firmware" ]; then
+              echo "正在复制无线固件到 /lib/firmware/ ..."
+              mkdir -p /lib/firmware
+              cp /usr/src/eswin-1.0/firmware/*.bin /lib/firmware/
+          fi
+          
+          # 注入并触发 DKMS 自动化构建流
+          echo "正在将驱动注册到 DKMS 框架..."
+          dkms add -m eswin-6600u -v 1.0
+          
+          echo "正在针对当前新编译的内核构建驱动模块（这需要一点时间）..."
+          dkms build -m eswin-6600u -v 1.0
+          
+          echo "正在将编译好的模块安装到系统内核树..."
+          dkms install -m eswin-6600u -v 1.0
+          
+          echo "=====> ESWIN 6600U 驱动自动化构建完成！ <====="
+          EOF
+          
+          # 赋予钩子脚本执行权限
+          chmod +x userpatches/customize-image.sh
+          echo "=====> 驱动及脚本注入成功！ <====="
+
       # 2. 彻底 root 权限执行原生的编译命令（100% 成功覆盖分支参数）
       - name: Run Armbian Native Compile Script
         run: |
           sudo ./compile.sh \
             BOARD=visionfive2 \
             BRANCH=vendor \
-            RELEASE=trixie \
-            BUILD_MINIMAL=no \
-            BUILD_DESKTOP=yes  \
-            DESKTOP_APPGROUPS_SELECTED='browsers chat desktop_tools' \
-            DESKTOP_ENVIRONMENT=xfce \
-            DESKTOP_ENVIRONMENT_CONFIG_NAME=config_base \
+            RELEASE=noble \
+            BUILD_MINIMAL=yes \
+            BUILD_DESKTOP=no \
             KERNEL_CONFIGURE=no \
             COMPRESS_OUTPUTIMAGE=sha,img,xz
 
