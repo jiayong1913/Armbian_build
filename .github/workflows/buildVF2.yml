@@ -25,7 +25,7 @@ jobs:
           mkdir -p userpatches/overlay/usr/src/eswin-1.0
           
           # 克隆您指定的专属适配驱动仓库到覆盖层
-          git clone https://github.com/jiayong1913/eswin6.6 userpatches/overlay/usr/src/eswin-1.0
+          git clone https://github.com/Junior513/eswin_6600u userpatches/overlay/usr/src/eswin-1.0
           
           # 强行建立目标系统的全局固件目录覆盖层
           mkdir -p userpatches/overlay/lib/firmware
