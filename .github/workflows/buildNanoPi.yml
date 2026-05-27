@@ -16,16 +16,18 @@ jobs:
           repository: 'armbian/build'
           ref: 'main'
 
-      # 2. 彻底 root 权限执行原生的编译命令（100% 成功覆盖分支参数）
+      # 2. 彻底 root 权限执行原生的编译命令（显式指定 BRANCH 以跳过交互菜单）
       - name: Run Armbian Native Compile Script
         run: |
           sudo ./compile.sh \
             BOARD=nanopiair \
+            BRANCH=current \
             RELEASE=trixie \
             BUILD_MINIMAL=yes \
             BUILD_DESKTOP=no \
             KERNEL_CONFIGURE=no \
             COMPRESS_OUTPUTIMAGE=sha,img,xz
+
       # 3. 自动将生成的镜像发布到 GitHub Releases 页面
       - name: Create GitHub Release and Upload Image
         uses: ncipollo/release-action@v1
