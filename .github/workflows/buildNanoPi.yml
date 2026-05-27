@@ -1,16 +1,37 @@
-name: Build Armbian Image
+name: Build nanopiair Image
 on:
   workflow_dispatch:
 
 jobs:
   build:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
     steps:
-      - uses: armbian/build@main
+      # 1. 克隆官方标准的 Armbian 编译框架源码
+      - name: Checkout Armbian Build Framework
+        uses: actions/checkout@v4
         with:
-          armbian_token: ${{ secrets.GITHUB_TOKEN }}
-          armbian_board: "nanopiair" # orangepi5 bananapif3
-          armbian_release: "trixie" # trixie
-          armbian_target: "build"
-          armbian_ui: "minimal" # server xfce
-          armbian_runner_clean: "yes" # recommended for Github runners
+          repository: 'armbian/build'
+          ref: 'main'
+
+      # 2. 彻底 root 权限执行原生的编译命令（100% 成功覆盖分支参数）
+      - name: Run Armbian Native Compile Script
+        run: |
+          sudo ./compile.sh \
+            BOARD=nanopiair \
+            RELEASE=trixie \
+            BUILD_MINIMAL=yes \
+            BUILD_DESKTOP=no \
+            KERNEL_CONFIGURE=no \
+            COMPRESS_OUTPUTIMAGE=sha,img,xz
+      # 3. 自动将生成的镜像发布到 GitHub Releases 页面
+      - name: Create GitHub Release and Upload Image
+        uses: ncipollo/release-action@v1
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          tag: "v${{ github.run_number }}"
+          name: "Armbian nanopiair v${{ github.run_number }}"
+          artifacts: "output/images/*.xz,output/images/*.sha"
+          allowUpdates: true
