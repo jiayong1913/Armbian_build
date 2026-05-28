@@ -22,7 +22,7 @@ jobs:
           sudo ./compile.sh \
             BOARD=nanopiair \
             BRANCH=current \
-            RELEASE=trixie \
+            RELEASE=noble \  #trixie
             BUILD_MINIMAL=yes \
             BUILD_DESKTOP=no \
             KERNEL_CONFIGURE=no \
